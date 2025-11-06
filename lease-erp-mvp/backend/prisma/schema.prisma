@@ -1,0 +1,441 @@
+// Prisma Schema for Leasing ERP MVP
+// Database: PostgreSQL (Neon)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// CORE MODELS
+// ============================================
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  subdomain String   @unique
+  settings  Json?    // Store tenant-specific settings
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  users       User[]
+  leads       Lead[]
+  customers   Customer[]
+  opportunities Opportunity[]
+  quotes      Quote[]
+  contracts   Contract[]
+  assets      Asset[]
+  documents   Document[]
+
+  @@map("tenants")
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  SALES
+  OPERATIONS
+  FINANCE
+  CUSTOMER
+}
+
+model User {
+  id       String   @id @default(uuid())
+  tenantId String
+  auth0Id  String   @unique
+  email    String   @unique
+  name     String?
+  role     UserRole @default(SALES)
+  isActive Boolean  @default(true)
+  metadata Json?    // Additional user data
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  tenant             Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedLeads      Lead[]        @relation("AssignedLeads")
+  assignedOpportunities Opportunity[] @relation("AssignedOpportunities")
+  createdQuotes      Quote[]       @relation("CreatedQuotes")
+  approvedQuotes     Quote[]       @relation("ApprovedQuotes")
+  createdContracts   Contract[]    @relation("CreatedContracts")
+  uploadedDocuments  Document[]
+
+  @@index([tenantId])
+  @@index([auth0Id])
+  @@index([email])
+  @@map("users")
+}
+
+// ============================================
+// CRM MODULE
+// ============================================
+
+enum LeadSource {
+  WEBSITE
+  REFERRAL
+  COLD_CALL
+  EMAIL_CAMPAIGN
+  SOCIAL_MEDIA
+  PARTNER
+  OTHER
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  CONVERTED
+  LOST
+}
+
+model Lead {
+  id         String     @id @default(uuid())
+  tenantId   String
+  name       String
+  email      String?
+  phone      String?
+  company    String?
+  source     LeadSource @default(WEBSITE)
+  status     LeadStatus @default(NEW)
+  assignedTo String?
+  score      Int?       // Lead scoring 0-100
+  notes      String?    @db.Text
+  metadata   Json?      // Additional lead data
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  // Relations
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedUser User?         @relation("AssignedLeads", fields: [assignedTo], references: [id])
+  opportunity  Opportunity?
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([assignedTo])
+  @@map("leads")
+}
+
+enum CustomerType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum KycStatus {
+  PENDING
+  IN_REVIEW
+  APPROVED
+  REJECTED
+}
+
+model Customer {
+  id           String       @id @default(uuid())
+  tenantId     String
+  type         CustomerType @default(BUSINESS)
+  name         String
+  email        String
+  phone        String?
+  taxId        String?      // Tax identification number
+  address      Json?        // Flexible address structure
+  kycStatus    KycStatus    @default(PENDING)
+  kycDocuments Json?        // Array of document references
+  creditScore  Int?         // Credit score 0-1000
+  metadata     Json?        // Additional customer data
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  opportunities Opportunity[]
+  quotes        Quote[]
+  contracts     Contract[]
+
+  @@index([tenantId])
+  @@index([email])
+  @@index([kycStatus])
+  @@map("customers")
+}
+
+enum OpportunityStage {
+  PROSPECTING
+  QUALIFICATION
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+model Opportunity {
+  id                String            @id @default(uuid())
+  tenantId          String
+  customerId        String
+  leadId            String?           @unique
+  title             String
+  description       String?           @db.Text
+  value             Decimal           @db.Decimal(12, 2)
+  stage             OpportunityStage  @default(PROSPECTING)
+  probability       Int               @default(0) // 0-100
+  expectedCloseDate DateTime?
+  assignedTo        String?
+  metadata          Json?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  lead         Lead?     @relation(fields: [leadId], references: [id])
+  assignedUser User?     @relation("AssignedOpportunities", fields: [assignedTo], references: [id])
+  quotes       Quote[]
+
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([stage])
+  @@index([assignedTo])
+  @@map("opportunities")
+}
+
+// ============================================
+// QUOTE MODULE
+// ============================================
+
+enum AssetType {
+  VEHICLE
+  EQUIPMENT
+  OTHER
+}
+
+enum LeaseType {
+  FINANCIAL_LEASE
+  OPERATING_LEASE
+  RENTAL
+  LEASE_TO_OWN
+}
+
+enum QuoteStatus {
+  DRAFT
+  SENT
+  APPROVED
+  REJECTED
+  EXPIRED
+  CONVERTED
+}
+
+model Quote {
+  id                 String      @id @default(uuid())
+  tenantId           String
+  quoteNumber        String      // Format: QT-YYYY-XXXXX
+  opportunityId      String?
+  customerId         String
+  assetType          AssetType   @default(VEHICLE)
+  assetDescription   String      @db.Text
+  assetValue         Decimal     @db.Decimal(12, 2)
+  leaseType          LeaseType   @default(FINANCIAL_LEASE)
+  durationMonths     Int
+  downPayment        Decimal     @default(0) @db.Decimal(12, 2)
+  interestRate       Decimal     @db.Decimal(5, 4) // e.g., 5.5% = 0.0550
+  monthlyPayment     Decimal     @db.Decimal(12, 2)
+  totalAmount        Decimal     @db.Decimal(12, 2)
+  status             QuoteStatus @default(DRAFT)
+  validUntil         DateTime?
+  calculationDetails Json?       // Amortization schedule, etc.
+  notes              String?     @db.Text
+  createdBy          String
+  approvedBy         String?
+  approvedAt         DateTime?
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
+
+  // Relations
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer     Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  opportunity  Opportunity? @relation(fields: [opportunityId], references: [id])
+  creator      User         @relation("CreatedQuotes", fields: [createdBy], references: [id])
+  approver     User?        @relation("ApprovedQuotes", fields: [approvedBy], references: [id])
+  contract     Contract?
+
+  @@unique([tenantId, quoteNumber])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+  @@map("quotes")
+}
+
+// ============================================
+// CONTRACT MODULE
+// ============================================
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  SUSPENDED
+  TERMINATED
+  COMPLETED
+}
+
+model Contract {
+  id                 String         @id @default(uuid())
+  tenantId           String
+  contractNumber     String         // Format: CT-YYYY-XXXXX
+  quoteId            String?        @unique
+  customerId         String
+  leaseType          LeaseType
+  startDate          DateTime
+  endDate            DateTime
+  status             ContractStatus @default(DRAFT)
+  parentContractId   String?        // For sub-contracts
+  terms              Json           // Payment schedule, T&C, etc.
+  totalValue         Decimal        @db.Decimal(12, 2)
+  monthlyPayment     Decimal        @db.Decimal(12, 2)
+  signedAt           DateTime?
+  signedDocumentUrl  String?
+  notes              String?        @db.Text
+  createdBy          String
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  // Relations
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  customer        Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quote           Quote?            @relation(fields: [quoteId], references: [id])
+  creator         User              @relation("CreatedContracts", fields: [createdBy], references: [id])
+  parentContract  Contract?         @relation("SubContracts", fields: [parentContractId], references: [id])
+  subContracts    Contract[]        @relation("SubContracts")
+  contractAssets  ContractAsset[]
+
+  @@unique([tenantId, contractNumber])
+  @@index([tenantId])
+  @@index([customerId])
+  @@index([status])
+  @@map("contracts")
+}
+
+// ============================================
+// ASSET MODULE
+// ============================================
+
+enum AssetStatus {
+  AVAILABLE
+  LEASED
+  MAINTENANCE
+  RETIRED
+}
+
+model Asset {
+  id             String       @id @default(uuid())
+  tenantId       String
+  assetNumber    String       // Format: AST-YYYY-XXXXX
+  type           AssetType    @default(VEHICLE)
+  category       String       // car, truck, forklift, etc.
+  make           String?
+  model          String?
+  year           Int?
+  serialNumber   String?
+  vin            String?      // Vehicle Identification Number
+  purchaseDate   DateTime?
+  purchaseValue  Decimal?     @db.Decimal(12, 2)
+  currentValue   Decimal?     @db.Decimal(12, 2)
+  status         AssetStatus  @default(AVAILABLE)
+  location       String?
+  specifications Json?        // Flexible specs
+  images         String[]     // Array of S3 URLs
+  metadata       Json?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  // Relations
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contractAssets ContractAsset[]
+
+  @@unique([tenantId, assetNumber])
+  @@index([tenantId])
+  @@index([status])
+  @@index([type])
+  @@map("assets")
+}
+
+// Junction table for Contract-Asset many-to-many relationship
+model ContractAsset {
+  id         String    @id @default(uuid())
+  contractId String
+  assetId    String
+  assignedAt DateTime  @default(now())
+  returnedAt DateTime?
+
+  // Relations
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  asset    Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, assetId])
+  @@index([contractId])
+  @@index([assetId])
+  @@map("contract_assets")
+}
+
+// ============================================
+// DOCUMENT MODULE
+// ============================================
+
+enum DocumentEntityType {
+  CONTRACT
+  CUSTOMER
+  ASSET
+  QUOTE
+  LEAD
+}
+
+enum DocumentType {
+  CONTRACT_PDF
+  KYC_DOCUMENT
+  INVOICE
+  PHOTO
+  OTHER
+}
+
+model Document {
+  id         String             @id @default(uuid())
+  tenantId   String
+  entityType DocumentEntityType
+  entityId   String
+  type       DocumentType       @default(OTHER)
+  filename   String
+  fileUrl    String             // S3 URL
+  mimeType   String
+  fileSize   Int                // In bytes
+  uploadedBy String
+  metadata   Json?
+  createdAt  DateTime           @default(now())
+
+  // Relations
+  tenant   Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  uploader User   @relation(fields: [uploadedBy], references: [id])
+
+  @@index([tenantId])
+  @@index([entityType, entityId])
+  @@map("documents")
+}
+
+// ============================================
+// AUDIT LOG (Optional for MVP)
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String
+  userId    String?
+  action    String   // CREATE, UPDATE, DELETE
+  entity    String   // Table name
+  entityId  String
+  changes   Json?    // Before/after snapshot
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([entity, entityId])
+  @@map("audit_logs")
+}

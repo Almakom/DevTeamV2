@@ -1,0 +1,99 @@
+export enum UserRole {
+  SUPER_ADMIN = 'SUPER_ADMIN',
+  SALES = 'SALES',
+  OPERATIONS = 'OPERATIONS',
+  FINANCE = 'FINANCE',
+  CUSTOMER = 'CUSTOMER',
+}
+
+export enum LeadSource {
+  WEBSITE = 'WEBSITE',
+  REFERRAL = 'REFERRAL',
+  COLD_CALL = 'COLD_CALL',
+  EMAIL_CAMPAIGN = 'EMAIL_CAMPAIGN',
+  SOCIAL_MEDIA = 'SOCIAL_MEDIA',
+  PARTNER = 'PARTNER',
+  OTHER = 'OTHER',
+}
+
+export enum LeadStatus {
+  NEW = 'NEW',
+  CONTACTED = 'CONTACTED',
+  QUALIFIED = 'QUALIFIED',
+  CONVERTED = 'CONVERTED',
+  LOST = 'LOST',
+}
+
+export enum CustomerType {
+  INDIVIDUAL = 'INDIVIDUAL',
+  BUSINESS = 'BUSINESS',
+}
+
+export enum KycStatus {
+  PENDING = 'PENDING',
+  IN_REVIEW = 'IN_REVIEW',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
+export enum OpportunityStage {
+  PROSPECTING = 'PROSPECTING',
+  QUALIFICATION = 'QUALIFICATION',
+  PROPOSAL = 'PROPOSAL',
+  NEGOTIATION = 'NEGOTIATION',
+  CLOSED_WON = 'CLOSED_WON',
+  CLOSED_LOST = 'CLOSED_LOST',
+}
+
+export enum AssetType {
+  VEHICLE = 'VEHICLE',
+  EQUIPMENT = 'EQUIPMENT',
+  OTHER = 'OTHER',
+}
+
+export enum LeaseType {
+  FINANCIAL_LEASE = 'FINANCIAL_LEASE',
+  OPERATING_LEASE = 'OPERATING_LEASE',
+  RENTAL = 'RENTAL',
+  LEASE_TO_OWN = 'LEASE_TO_OWN',
+}
+
+export enum QuoteStatus {
+  DRAFT = 'DRAFT',
+  SENT = 'SENT',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+  EXPIRED = 'EXPIRED',
+  CONVERTED = 'CONVERTED',
+}
+
+export enum ContractStatus {
+  DRAFT = 'DRAFT',
+  ACTIVE = 'ACTIVE',
+  SUSPENDED = 'SUSPENDED',
+  TERMINATED = 'TERMINATED',
+  COMPLETED = 'COMPLETED',
+}
+
+export enum AssetStatus {
+  AVAILABLE = 'AVAILABLE',
+  LEASED = 'LEASED',
+  MAINTENANCE = 'MAINTENANCE',
+  RETIRED = 'RETIRED',
+}
+
+export enum DocumentEntityType {
+  CONTRACT = 'CONTRACT',
+  CUSTOMER = 'CUSTOMER',
+  ASSET = 'ASSET',
+  QUOTE = 'QUOTE',
+  LEAD = 'LEAD',
+}
+
+export enum DocumentType {
+  CONTRACT_PDF = 'CONTRACT_PDF',
+  KYC_DOCUMENT = 'KYC_DOCUMENT',
+  INVOICE = 'INVOICE',
+  PHOTO = 'PHOTO',
+  OTHER = 'OTHER',
+}
