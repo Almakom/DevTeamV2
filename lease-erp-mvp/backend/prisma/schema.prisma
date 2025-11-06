@@ -32,6 +32,7 @@ model Tenant {
   contracts   Contract[]
   assets      Asset[]
   documents   Document[]
+  invoices    Invoice[]
 
   @@map("tenants")
 }
@@ -64,6 +65,8 @@ model User {
   approvedQuotes     Quote[]       @relation("ApprovedQuotes")
   createdContracts   Contract[]    @relation("CreatedContracts")
   uploadedDocuments  Document[]
+  createdInvoices    Invoice[]     @relation("CreatedInvoices")
+  createdPayments    Payment[]     @relation("CreatedPayments")
 
   @@index([tenantId])
   @@index([auth0Id])
@@ -153,6 +156,7 @@ model Customer {
   opportunities Opportunity[]
   quotes        Quote[]
   contracts     Contract[]
+  invoices      Invoice[]
 
   @@index([tenantId])
   @@index([email])
@@ -306,6 +310,7 @@ model Contract {
   parentContract  Contract?         @relation("SubContracts", fields: [parentContractId], references: [id])
   subContracts    Contract[]        @relation("SubContracts")
   contractAssets  ContractAsset[]
+  invoices        Invoice[]
 
   @@unique([tenantId, contractNumber])
   @@index([tenantId])
@@ -438,4 +443,94 @@ model AuditLog {
   @@index([userId])
   @@index([entity, entityId])
   @@map("audit_logs")
+}
+
+// ============================================
+// BILLING & INVOICING MODULE
+// ============================================
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  BANK_TRANSFER
+  CASH
+  CHECK
+  STRIPE
+  OTHER
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  tenantId        String
+  invoiceNumber   String        // Format: INV-YYYY-XXXXX
+  contractId      String
+  customerId      String
+  issueDate       DateTime      @default(now())
+  dueDate         DateTime
+  amount          Decimal       @db.Decimal(12, 2)
+  paidAmount      Decimal       @default(0) @db.Decimal(12, 2)
+  status          InvoiceStatus @default(DRAFT)
+  description     String?       @db.Text
+  lineItems       Json?         // Array of line items
+  notes           String?       @db.Text
+  pdfUrl          String?       // S3 URL for generated PDF
+  createdBy       String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  tenant    Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  contract  Contract  @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  creator   User      @relation("CreatedInvoices", fields: [createdBy], references: [id])
+  payments  Payment[]
+
+  @@unique([tenantId, invoiceNumber])
+  @@index([tenantId])
+  @@index([contractId])
+  @@index([customerId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model Payment {
+  id              String        @id @default(uuid())
+  tenantId        String
+  invoiceId       String
+  paymentNumber   String        // Format: PAY-YYYY-XXXXX
+  amount          Decimal       @db.Decimal(12, 2)
+  paymentDate     DateTime      @default(now())
+  paymentMethod   PaymentMethod
+  status          PaymentStatus @default(PENDING)
+  transactionId   String?       // External payment gateway transaction ID
+  reference       String?       // Check number, transfer reference, etc.
+  notes           String?       @db.Text
+  createdBy       String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  creator User    @relation("CreatedPayments", fields: [createdBy], references: [id])
+
+  @@unique([tenantId, paymentNumber])
+  @@index([tenantId])
+  @@index([invoiceId])
+  @@index([status])
+  @@map("payments")
 }
