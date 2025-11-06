@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-// TODO: Import controllers and services when created
+import { ContractController } from './controllers/contract.controller';
+import { ContractService } from './services/contract.service';
 
 @Module({
-  controllers: [],
-  providers: [],
-  exports: [],
+  controllers: [ContractController],
+  providers: [ContractService],
+  exports: [ContractService],
 })
 export class ContractModule {}

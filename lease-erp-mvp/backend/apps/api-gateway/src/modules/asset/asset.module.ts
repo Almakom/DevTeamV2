@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-// TODO: Import controllers and services when created
+import { AssetController } from './controllers/asset.controller';
+import { AssetService } from './services/asset.service';
 
 @Module({
-  controllers: [],
-  providers: [],
-  exports: [],
+  controllers: [AssetController],
+  providers: [AssetService],
+  exports: [AssetService],
 })
 export class AssetModule {}
